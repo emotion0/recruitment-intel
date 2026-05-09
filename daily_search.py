@@ -1,79 +1,81 @@
 #!/usr/bin/env python3
 """
 招聘/教育平台私域付费情报 — 每日自动抓取脚本
-在 GitHub Actions 中运行，不依赖 Claude。
-搜索策略：ddgs 关键词搜索 + RSS 新闻源
+搜索源限定：微信/微博/抖音/B站/知乎/小红书 + 各平台官网
+聚焦：付费项目相关行为、结果数据、舆论反响
 """
 
 import time
 import json
-import hashlib
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
-
 
 PROJECT_DIR = Path(__file__).parent
 REPORTS_DIR = PROJECT_DIR / "reports"
 DATA_DIR = PROJECT_DIR / "data"
 
-# ── 搜索主题配置 ──────────────────────────────────
-SEARCH_QUERIES = [
+TODAY = datetime.now().strftime("%Y-%m-%d")
+
+# ── 平台搜索配置（每个平台 + 限定搜索源） ─────────────────
+PLATFORM_QUERIES = [
     ("BOSS直聘", [
-        "BOSS直聘 2026 付费 营收 用户",
-        "BOSS直聘 私域 运营 付费模式",
-        "BOSS直聘 合作 平台 生态",
+        "BOSS直聘 付费 用户 数据 2026 site:zhipin.com",
+        "BOSS直聘 营收 付费企业 财报",
+        "BOSS直聘 付费 争议 用户 投诉",
+        "BOSS直聘 付费 知乎",
+        "BOSS直聘 付费 微博",
     ]),
     ("智联招聘", [
-        "智联招聘 2026 付费 私域",
-        "智联招聘 企业客户 营收",
+        "智联招聘 付费 企业客户 营收",
+        "智联招聘 付费 私域 社群",
+        "智联招聘 付费 知乎 微博",
     ]),
     ("前程无忧", [
-        "前程无忧 51job 2026 付费 私域",
-        "前程无忧 AI 招聘 用户来源",
+        "前程无忧 51job 付费 会员 价格",
+        "前程无忧 AI 用户 付费",
+        "前程无忧 付费 知乎 site:51job.com",
     ]),
     ("同道猎聘", [
-        "猎聘 2026 营收 付费用户 财报",
-        "同道猎聘 AI 私域 招聘",
+        "猎聘 付费用户 2026 财报",
+        "猎聘 付费 企业版 AI",
+        "猎聘 付费 知乎 微博",
     ]),
     ("高途教育", [
-        "高途教育 2026 付费 用户 获客",
-        "高途 财报 营收 盈利",
+        "高途 付费用户 获客 抖音 2026",
+        "高途 财报 营收 利润",
+        "高途 付费 知乎 小红书",
     ]),
     ("高顿教育", [
-        "高顿教育 2026 付费 用户 获客",
-        "高顿 融资 业务 扩展",
+        "高顿教育 付费 用户 小红书",
+        "高顿 财经培训 付费 知乎",
+        "高顿 官网 课程 价格 site:goldeneducation.cn",
     ]),
     ("海马职加", [
-        "海马职加 付费 求职 2026",
-        "留学生 付费内推 求职机构",
+        "海马职加 付费 内推 知乎",
+        "付费求职机构 留学生 小红书 微博",
+        "付费 远程实习 争议 投诉",
     ]),
     ("实习僧", [
-        "实习僧 2026 付费 私域",
-        "实习招聘平台 用户 付费",
+        "实习僧 付费 会员 用户",
+        "实习僧 知乎 小红书 site:shixiseng.com",
     ]),
     ("牛客网", [
-        "牛客网 2026 付费 校招 产品",
-        "技术求职平台 付费 用户",
+        "牛客网 付费 校招 产品 知乎",
+        "牛客网 付费 笔试 面试 微博",
     ]),
 ]
 
-BROAD_QUERIES = [
-    "在线招聘 付费模式 私域流量 2026",
-    "在线教育 付费用户 获客成本 2026",
-    "求职平台 用户付费 营收 财报",
-    "招聘行业 AI 私域 趋势 2026",
-    "职业教育 知识付费 转化 2026",
+# 跨平台付费行为综合检索
+CROSS_PLATFORM_QUERIES = [
+    "招聘平台 付费用户 数据 2026 知乎",
+    "在线教育 付费 获客 转化 抖音 小红书",
+    "求职平台 会员付费 续费率 微博 知乎",
+    "职业教育 知识付费 用户 行为 数据 2026",
+    "招聘 APP 付费 价格 对比 知乎",
+    "私域运营 付费转化 招聘 微博 小红书",
 ]
 
-RSS_FEEDS = [
-    ("36氪", "https://36kr.com/feed"),
-    ("虎嗅", "https://www.huxiu.com/rss/0.xml"),
-    ("DoNews", "https://www.donews.com/rss"),
-]
-
-# ── 搜索模块 ─────────────────────────────────────
 
 def search_ddgs(query: str, max_results: int = 5) -> list[dict]:
     """使用 ddgs 搜索，带重试和退避"""
@@ -87,41 +89,68 @@ def search_ddgs(query: str, max_results: int = 5) -> list[dict]:
                         "title": r.get("title", ""),
                         "url": r.get("href", ""),
                         "snippet": r.get("body", ""),
+                        "date": r.get("date", ""),
                     })
             if results:
                 return results
         except Exception as e:
-            wait = (attempt + 1) * 3 + random.uniform(1, 3)
-            print(f"  [ddgs] {query[:30]}... 失败 (尝试 {attempt+1}/3): {e}")
+            wait = (attempt + 1) * 4 + random.uniform(1, 3)
+            print(f"  [ddgs] {query[:40]}... 重试 {attempt+1}/3: {str(e)[:80]}")
             time.sleep(wait)
     return []
 
 
-def fetch_rss(feed_name: str, feed_url: str, max_items: int = 10) -> list[dict]:
-    """拉取 RSS 源"""
-    try:
-        import feedparser
-        feed = feedparser.parse(feed_url)
-        items = []
-        for entry in feed.entries[:max_items]:
-            items.append({
-                "title": entry.get("title", ""),
-                "url": entry.get("link", ""),
-                "snippet": entry.get("summary", ""),
-                "source": feed_name,
-                "published": entry.get("published", ""),
-            })
-        print(f"  [RSS] {feed_name}: {len(items)} 条")
-        return items
-    except Exception as e:
-        print(f"  [RSS] {feed_name}: 失败 - {e}")
-        return []
+def infer_date(item: dict) -> str:
+    """推断信息发布日期"""
+    d = item.get("date", "")
+    if d:
+        return d[:10]
+    snippet = item.get("snippet", "")
+    title = item.get("title", "")
+    text = title + snippet
+    import re
+    for pat in [r'(\d{4}-\d{2}-\d{2})', r'(\d{4}年\d{1,2}月\d{1,2}日)']:
+        m = re.search(pat, text)
+        if m:
+            return m.group(1)
+    return TODAY
 
 
-# ── 去重模块 ─────────────────────────────────────
+def infer_source_platform(item: dict) -> str:
+    """根据 URL 推断信息来源平台"""
+    url = item.get("url", "")
+    if "zhihu.com" in url:
+        return "知乎"
+    if "weibo.com" in url:
+        return "微博"
+    if "douyin.com" in url:
+        return "抖音"
+    if "bilibili.com" in url:
+        return "B站"
+    if "xiaohongshu.com" in url:
+        return "小红书"
+    if "mp.weixin.qq.com" in url:
+        return "微信公众号"
+    if "zhipin.com" in url:
+        return "BOSS直聘官网"
+    if "51job.com" in url:
+        return "前程无忧官网"
+    if "zhaopin.com" in url:
+        return "智联招聘官网"
+    if "liepin.com" in url:
+        return "猎聘官网"
+    if "gaotu.cn" in url or "gaotu.com" in url:
+        return "高途官网"
+    if "goldeneducation.cn" in url:
+        return "高顿官网"
+    if "shixiseng.com" in url:
+        return "实习僧官网"
+    if "nowcoder.com" in url:
+        return "牛客网官网"
+    return "综合媒体"
+
 
 def load_recent_urls(days: int = 7) -> set:
-    """加载近 N 天报告中出现过的 URL"""
     urls = set()
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     for f in sorted(REPORTS_DIR.glob("*.md")):
@@ -129,54 +158,78 @@ def load_recent_urls(days: int = 7) -> set:
             continue
         for line in f.read_text().split("\n"):
             if "http" in line:
-                # 提取 URL
                 import re
-                found = re.findall(r'https?://[^\s\)\[\]]+', line)
-                urls.update(found)
+                urls.update(re.findall(r'https?://[^\s\)\[\]]+', line))
     return urls
 
 
 def load_recent_titles(days: int = 7) -> set:
-    """加载近 N 天报告中出现过的新闻标题关键词"""
     titles = set()
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     for f in sorted(REPORTS_DIR.glob("*.md")):
         if f.stem < cutoff:
             continue
         for line in f.read_text().split("\n"):
-            if line.startswith("- **") or line.startswith("- ["):
+            if line.strip().startswith("- **"):
                 titles.add(line.strip()[:120])
     return titles
 
 
-# ── 报告生成 ─────────────────────────────────────
+def collect_for_insight(items_by_platform: dict, cross_items: list) -> str:
+    """收集所有条目文本，供 AI 生成洞察摘要"""
+    texts = []
+    for name, items in items_by_platform.items():
+        for item in items[:4]:
+            texts.append(f"[{name}] {item.get('title','')}: {item.get('snippet','')[:200]}")
+    for item in cross_items[:5]:
+        texts.append(f"[行业] {item.get('title','')}: {item.get('snippet','')[:200]}")
+    return "\n".join(texts)
 
-def generate_report(today: str, platform_results: dict, broad_results: list, rss_items: list) -> str:
-    """将搜索结果编译为 markdown 报告"""
+
+def generate_report(items_by_platform: dict, cross_items: list) -> str:
     lines = []
-    lines.append(f"# 招聘/教育平台私域付费动态情报")
+    lines.append(f"# 招聘/教育平台私域付费情报")
     lines.append("")
-    lines.append(f"> 生成时间：{today}  {datetime.now().strftime('%H:%M')} CST  ")
-    lines.append(f"> 覆盖平台：BOSS直聘、智联招聘、前程无忧、猎聘、高途、高顿、海马职加、实习僧、牛客网  ")
-    lines.append(f"> 数据来源：公开搜索 + RSS 聚合，自动生成  ")
+    lines.append(f"> 生成日期：{TODAY}  ")
+    lines.append(f"> 检索范围：BOSS直聘、智联招聘、前程无忧、猎聘、高途、高顿、海马职加、实习僧、牛客网  ")
+    lines.append(f"> 信息源限定：微信/微博/抖音/B站/知乎/小红书 + 各平台官网  ")
     lines.append("")
     lines.append("---")
     lines.append("")
 
-    # 平台专项
-    for platform_name, queries in SEARCH_QUERIES:
-        items = platform_results.get(platform_name, [])
-        lines.append(f"## {platform_name}")
+    total_items = 0
+    for platform_name, queries in PLATFORM_QUERIES:
+        items = items_by_platform.get(platform_name, [])
+        total_items += len(items)
+
+        # 按热度自动标记
+        hot_count = sum(1 for i in items if any(
+            kw in (i.get("title", "") + i.get("snippet", ""))
+            for kw in ["营收", "净利润", "财报", "亿元", "上市", "监管", "处罚"]
+        ))
+        if hot_count >= 2:
+            marker = " 🔴"
+        elif hot_count >= 1 or len(items) >= 4:
+            marker = " 🟡"
+        else:
+            marker = ""
+
+        lines.append(f"## {marker} {platform_name}")
         lines.append("")
+
         if items:
-            for item in items[:6]:
-                title = item.get("title", "无标题")
+            for idx, item in enumerate(items[:6]):
+                title = item.get("title", "无标题").replace("|", "-")
                 url = item.get("url", "")
-                snippet = item.get("snippet", "")
+                snippet = item.get("snippet", "").replace("\n", " ")[:180]
+                date = infer_date(item)
+                source = infer_source_platform(item)
+
+                lines.append(f"- **{title}**")
                 if snippet:
-                    lines.append(f"- **{title}** — {snippet[:150]} [来源]({url})")
-                else:
-                    lines.append(f"- **{title}** [来源]({url})")
+                    lines.append(f"  {snippet}")
+                lines.append(f"  📅 {date} · 来源：{source} · [查看原文]({url})")
+                lines.append("")
         else:
             lines.append("> 本日未发现新的相关动态")
         lines.append("")
@@ -184,103 +237,89 @@ def generate_report(today: str, platform_results: dict, broad_results: list, rss
         lines.append("")
 
     # 行业综合
-    lines.append("## ⚪ 行业综合动态")
+    lines.append("## ⚪ 跨平台付费行为综合")
     lines.append("")
-    if broad_results:
-        for item in broad_results[:10]:
-            title = item.get("title", "")
+    if cross_items:
+        for item in cross_items[:10]:
+            title = item.get("title", "").replace("|", "-")
             url = item.get("url", "")
-            snippet = item.get("snippet", "")
-            lines.append(f"- **{title}** — {snippet[:150]} [来源]({url})")
-    lines.append("")
-    lines.append("---")
+            snippet = item.get("snippet", "").replace("\n", " ")[:180]
+            date = infer_date(item)
+            source = infer_source_platform(item)
+            lines.append(f"- **{title}**")
+            if snippet:
+                lines.append(f"  {snippet}")
+            lines.append(f"  📅 {date} · 来源：{source} · [查看原文]({url})")
+            lines.append("")
     lines.append("")
 
-    # RSS 要闻
-    if rss_items:
-        lines.append("## ⚪ RSS 新闻聚合")
-        lines.append("")
-        for item in rss_items[:15]:
-            source = item.get("source", "")
-            title = item.get("title", "")
-            url = item.get("url", "")
-            snippet = item.get("snippet", "")[:120]
-            lines.append(f"- [{source}] **{title}** — {snippet} [原文]({url})")
-        lines.append("")
+    # 数据摘要
+    today_items = total_items + len(cross_items)
+    lines.append("---")
+    lines.append(f"*本日共检索到 {today_items} 条相关信息，去重后纳入报告。*")
+    lines.append(f"*自动生成于 {datetime.now().strftime('%Y-%m-%d %H:%M')} CST*")
 
     return "\n".join(lines)
 
 
-# ── 主流程 ───────────────────────────────────────
-
 def main():
-    today = datetime.now().strftime("%Y-%m-%d")
-    print(f"=== 招聘情报自动抓取 {today} ===\n")
+    print(f"=== 招聘情报自动抓取 {TODAY} ===\n")
 
-    # 加载历史去重
     recent_urls = load_recent_urls()
     recent_titles = load_recent_titles()
     print(f"[去重] 近7天历史 URL: {len(recent_urls)} 条\n")
 
-    # 平台专项搜索
-    platform_results = {}
-    for platform_name, queries in SEARCH_QUERIES:
+    items_by_platform = {}
+    insight_texts = []
+
+    for platform_name, queries in PLATFORM_QUERIES:
         print(f"[搜索] {platform_name}...")
         all_items = []
         seen = set()
         for q in queries:
-            results = search_ddgs(q, max_results=5)
+            results = search_ddgs(q, max_results=4)
             for r in results:
                 url = r.get("url", "")
                 title = r.get("title", "")
-                # 去重
                 if url in recent_urls or url in seen:
                     continue
-                if title[:80] in recent_titles:
+                if title[:60] in recent_titles:
                     continue
                 seen.add(url)
                 all_items.append(r)
-            time.sleep(2)  # 请求间隔
-        platform_results[platform_name] = all_items
+            time.sleep(2)
+        items_by_platform[platform_name] = all_items
         print(f"  -> {len(all_items)} 条新结果\n")
 
-    # 行业综合搜索
-    print("[搜索] 行业综合...")
-    broad_results = []
-    broad_seen = set()
-    for q in BROAD_QUERIES:
+    print("[搜索] 跨平台综合...")
+    cross_items = []
+    cross_seen = set()
+    for q in CROSS_PLATFORM_QUERIES:
         results = search_ddgs(q, max_results=4)
         for r in results:
             url = r.get("url", "")
-            if url in recent_urls or url in broad_seen:
+            if url in recent_urls or url in cross_seen:
                 continue
-            broad_seen.add(url)
-            broad_results.append(r)
+            cross_seen.add(url)
+            cross_items.append(r)
         time.sleep(2)
-    print(f"  -> {len(broad_results)} 条新结果\n")
+    print(f"  -> {len(cross_items)} 条\n")
 
-    # RSS
-    print("[RSS] 拉取新闻源...")
-    rss_items = []
-    for name, url in RSS_FEEDS:
-        items = fetch_rss(name, url)
-        for item in items:
-            item_url = item.get("url", "")
-            if item_url not in recent_urls:
-                rss_items.append(item)
-        time.sleep(1)
-    print(f"  -> {len(rss_items)} 条 RSS 新闻\n")
-
-    # 生成报告
-    total = sum(len(v) for v in platform_results.values()) + len(broad_results)
-    if total == 0 and not rss_items:
-        print("[跳过] 今日无任何新信息，不生成报告")
+    total = sum(len(v) for v in items_by_platform.values()) + len(cross_items)
+    if total == 0:
+        print("[跳过] 今日无新信息")
         return
 
-    report = generate_report(today, platform_results, broad_results, rss_items)
-    report_path = REPORTS_DIR / f"{today}.md"
+    report = generate_report(items_by_platform, cross_items)
+    report_path = REPORTS_DIR / f"{TODAY}.md"
     report_path.write_text(report)
+
+    # 保存原始数据供 AI 洞察使用
+    insight_data = collect_for_insight(items_by_platform, cross_items)
+    (DATA_DIR / "insight_data.txt").write_text(insight_data)
+
     print(f"[报告] 已保存: {report_path} ({len(report)} 字符)")
+    print(f"[数据] 洞察素材: {len(insight_data)} 字符")
 
 
 if __name__ == "__main__":

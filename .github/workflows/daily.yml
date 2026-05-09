@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ddgs feedparser
+          pip install ddgs requests
 
       - name: Run search & compile
         run: python daily_search.py
@@ -38,6 +38,7 @@ jobs:
           SMTP_USER: 13844808163@163.com
           SMTP_PASS: ${{ secrets.SMTP_PASSWORD }}
           SMTP_TO: "13844808163@163.com, xiaocheng.song@51job.com"
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python send_report.py
 
       - name: Commit report back to repo
