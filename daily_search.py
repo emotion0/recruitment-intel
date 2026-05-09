@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-招聘/教育平台私域付费情报 — 每日自动抓取
-搜索源：微信/微博/抖音/B站/知乎/小红书 + 各平台官网 + 公众号/个人博主
-聚焦：付费项目相关行为、结果数据、舆论反响
+大学生求职竞品付费情报 — 每日自动抓取
+目标用户：大学生/应届生
+搜索源：微信/微博/抖音/B站/知乎/小红书 + 各平台官网 + 公众号
+聚焦：求职相关付费产品、用户行为、舆论反响
 """
 
 import time
@@ -57,7 +58,6 @@ JUNK_KEYWORDS = [
 # 允许的域名模式（白名单优先）
 TRUSTED_DOMAINS = [
     "zhipin.com", "51job.com", "zhaopin.com", "liepin.com",
-    "gaotu.cn", "gaotu.com", "gaodun.com", "goldeneducation.cn",
     "shixiseng.com", "nowcoder.com",
     "zhihu.com", "weibo.com", "bilibili.com", "xiaohongshu.com",
     "douyin.com", "mp.weixin.qq.com",
@@ -77,68 +77,50 @@ TRUSTED_DOMAINS = [
 # ── 搜索配置（增加公众号和小红书博主方向） ──────────
 PLATFORM_QUERIES = [
     ("BOSS直聘", [
-        "BOSS直聘 付费 VIP 企业 2026",
-        "BOSS直聘 营收 财报 付费用户",
-        "BOSS直聘 付费 争议 投诉 site:zhihu.com",
-        "BOSS直聘 付费 公众号 site:mp.weixin.qq.com",
-        "BOSS直聘 付费 小红书",
+        "BOSS直聘 大学生 付费 求职 2026",
+        "BOSS直聘 应届生 付费 会员 知乎",
+        "BOSS直聘 付费 争议 学生 投诉 site:zhihu.com",
+        "BOSS直聘 校招 付费 公众号 site:mp.weixin.qq.com",
     ]),
     ("智联招聘", [
-        "智联招聘 付费 企业 营收",
-        "智联招聘 私域 付费 社群",
-        "智联招聘 付费 site:zhihu.com",
-        "智联招聘 公众号 付费 会员 site:mp.weixin.qq.com",
+        "智联招聘 大学生 付费 会员",
+        "智联招聘 应届生 求职 付费 知乎",
+        "智联招聘 校招 付费 小红书",
     ]),
     ("前程无忧", [
-        "前程无忧 51job 付费 会员",
-        "前程无忧 私域 用户 付费",
-        "前程无忧 付费 site:zhihu.com",
-        "前程无忧 公众号 小红书 付费",
+        "前程无忧 51job 大学生 付费 会员",
+        "前程无忧 应届生 求职 付费 知乎",
+        "前程无忧 校招 付费 site:mp.weixin.qq.com",
     ]),
     ("同道猎聘", [
-        "猎聘 付费用户 财报 2026",
-        "猎聘 AI 企业版 付费",
-        "猎聘 付费 知乎 小红书",
-        "猎聘 付费 公众号 site:mp.weixin.qq.com",
-    ]),
-    ("高途教育", [
-        "高途 付费 获客 2026",
-        "高途 财报 营收 付费",
-        "高途 付费 小红书 知乎",
-        "高途 付费 公众号 site:mp.weixin.qq.com",
-    ]),
-    ("高顿教育", [
-        "高顿教育 付费 课程 价格 2026",
-        "高顿 财经 付费 用户 知乎",
-        "高顿教育 小红书 付费",
-        "高顿 公众号 付费 site:mp.weixin.qq.com",
+        "猎聘 大学生 应届生 付费 知乎",
+        "猎聘 校招 付费 会员 小红书",
+        "猎聘 付费 实习 公众号 site:mp.weixin.qq.com",
     ]),
     ("海马职加", [
-        "海马职加 付费 内推 知乎",
-        "付费求职 留学生 小红书",
-        "付费内推 公众号 求职 site:mp.weixin.qq.com",
+        "海马职加 付费 内推 留学生 知乎",
+        "付费求职 大学生 应届生 小红书",
+        "付费内推 实习 避坑 公众号 site:mp.weixin.qq.com",
     ]),
     ("实习僧", [
-        "实习僧 付费 会员 用户",
-        "实习僧 知乎 小红书 付费",
-        "实习招聘 付费 公众号 site:mp.weixin.qq.com",
+        "实习僧 大学生 付费 会员 知乎",
+        "实习僧 付费 实习 内推 小红书",
+        "实习僧 应届生 付费 公众号 site:mp.weixin.qq.com",
     ]),
     ("牛客网", [
-        "牛客网 付费 校招 产品",
-        "牛客网 知乎 付费 会员",
-        "牛客网 小红书 付费 笔试",
-        "牛客网 公众号 付费 site:mp.weixin.qq.com",
+        "牛客网 大学生 付费 笔试 面试 知乎",
+        "牛客网 校招 付费 会员 小红书",
+        "牛客网 应届生 付费 公众号 site:mp.weixin.qq.com",
     ]),
 ]
 
 CROSS_PLATFORM_QUERIES = [
-    "招聘平台 付费用户 数据 2026 知乎",
-    "在线教育 付费 获客 小红书 2026",
-    "求职 会员付费 续费 公众号 site:mp.weixin.qq.com",
-    "招聘 APP 付费 对比 小红书 知乎",
-    "私域运营 付费转化 招聘 公众号 site:mp.weixin.qq.com",
-    "知识付费 求职 小红书 博主 2026",
-    "微信公众号 招聘 付费 分析 2026",
+    "大学生 求职 付费内推 避坑 知乎 2026",
+    "应届生 招聘平台 付费 对比 小红书",
+    "大学生 求职 付费服务 投诉 公众号 site:mp.weixin.qq.com",
+    "校招 付费内推 骗局 知乎 微博",
+    "应届生 付费简历优化 面试辅导 小红书 2026",
+    "大学生 求职 APP 会员 付费 值不值 知乎",
 ]
 
 
@@ -196,21 +178,18 @@ def is_junk(item: dict) -> bool:
 
 
 def is_relevant(item: dict) -> bool:
-    """检查内容是否与付费/私域/招聘/教育主题相关"""
+    """检查内容是否与大学生求职付费主题相关"""
     title = item.get("title", "")
     snippet = item.get("snippet", "")
     text = f"{title} {snippet}"
 
-    relevant_keywords = [
-        "付费", "会员", "VIP", "订阅", "套餐", "价格", "收费",
-        "私域", "社群", "获客", "转化", "续费",
-        "招聘", "求职", "简历", "面试", "内推", "校招",
-        "教育", "培训", "课程", "学习",
-        "营收", "财报", "净利润", "亿元", "融资",
-        "用户", "平台", "企业", "数据", "增长",
-    ]
-    matches = sum(1 for kw in relevant_keywords if kw in text)
-    return matches >= 2
+    must_have = ["付费", "会员", "VIP", "订阅", "套餐", "收费", "内推", "价格", "投诉", "争议"]
+    context = ["大学生", "应届生", "求职", "招聘", "校招", "实习", "简历", "面试",
+               "秋招", "春招", "学生", "毕业生", "校园", "留学生"]
+
+    has_paid = any(kw in text for kw in must_have)
+    has_context = any(kw in text for kw in context)
+    return has_paid and has_context
 
 
 def search_ddgs(query: str, max_results: int = 5) -> list[dict]:
@@ -262,8 +241,6 @@ def classify_source(url: str) -> str:
         ("51job.com", "前程无忧官网"),
         ("zhaopin.com", "智联招聘官网"),
         ("liepin.com", "猎聘官网"),
-        ("gaotu", "高途官网"),
-        ("gaodun", "高顿官网"),
         ("shixiseng.com", "实习僧官网"),
         ("nowcoder.com", "牛客网官网"),
         ("36kr.com", "36氪"),
@@ -309,11 +286,12 @@ def load_recent_titles(days: int = 7) -> set:
 
 def generate_report(items_by_platform: dict, cross_items: list) -> str:
     lines = [
-        "# 招聘/教育平台私域付费情报",
+        "# 大学生求职竞品付费情报",
         "",
         f"> 生成日期：{TODAY}  ",
-        "> 检索范围：BOSS直聘、智联招聘、前程无忧、猎聘、高途、高顿、海马职加、实习僧、牛客网  ",
-        "> 信息源：微信/微博/抖音/B站/知乎/小红书 + 公众号/个人博主 + 各平台官网  ",
+        "> 目标用户：大学生/应届生  ",
+        "> 检索范围：BOSS直聘、智联招聘、前程无忧、猎聘、海马职加、实习僧、牛客网  ",
+        "> 信息源：微信/微博/抖音/B站/知乎/小红书 + 公众号/各平台官网  ",
         "",
         "---",
         "",
