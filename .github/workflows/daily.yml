@@ -1,0 +1,46 @@
+name: 招聘私域付费情报日报
+
+on:
+  schedule:
+    # 每天北京时间 10:00 (UTC+8) = UTC 02:00
+    - cron: "0 2 * * *"
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ddgs feedparser
+
+      - name: Run search & compile
+        run: python daily_search.py
+
+      - name: Send email
+        env:
+          SMTP_HOST: smtp.163.com
+          SMTP_PORT: 465
+          SMTP_USER: 13844808163@163.com
+          SMTP_PASS: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_TO: "13844808163@163.com, xiaocheng.song@51job.com"
+        run: python send_report.py
+
+      - name: Commit report back to repo
+        if: success()
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@recruitment-intel"
+          git add reports/ data/
+          git diff --staged --quiet || (git commit -m "日报 $(date +%Y-%m-%d)" && git push)

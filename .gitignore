@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# 运行时数据
+data/sent_hashes.json
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
