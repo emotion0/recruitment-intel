@@ -7,6 +7,7 @@ import smtplib
 import hashlib
 import json
 import sys
+import os
 import re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
